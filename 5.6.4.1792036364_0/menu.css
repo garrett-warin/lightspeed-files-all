@@ -1,0 +1,311 @@
+/* BOB browser-action popup — visual system (HM-160 surface, HM-162 fidelity).
+   Ported from the "Hall Monitor 2" prototype (student.html). Extension CSP +
+   packaged assets → system fonts + emoji glyphs instead of Google Fonts /
+   Material Icons: faithful to the palette/layout/animation, not pixel-identical.
+   bob_panel.js renders these classes as vanilla DOM. */
+
+:root {
+  --teal: #007fa5; --teal-hover: #00688a; --teal-bg: #f5fbfd; --teal-border: #7ed3fe;
+  --g100: #f5f5f5; --g200: #e9ebed; --g300: #d8dcde; --g400: #87929d; --g500: #68737d; --g700: #3d4750; --g800: #2f3941;
+  --green: #2e7d32; --green-bg: #f7fbf2; --green-border: #c8e0a6;
+  /* HM-175: the foreground amber/red are the prototype's DS tokens
+     (student.html C.amber / C.red). They had drifted to a Google-ish
+     #b06000/#c5221f while every -bg/-border token beside them was ported
+     faithfully, so the popup carried two different ambers once bob_ui's
+     progress bar picked its own. Both files now name the same two hexes.
+     Contrast, measured against the surface each one actually lands on rather
+     than against white: --amber is only ever painted on GLYPHS and bar fills
+     (3:1 threshold — 3.60:1 on --amber-bg, 3.17:1 on the --g200 track). The one
+     place a progress color becomes TEXT is the overdue elapsed label, and it
+     sits on an .info-card (--g100), where --red is 4.57:1 — over the 4.5:1
+     floor, but only just. Both hexes are lighter than the ones they replaced,
+     so the margins here are thin: darkening --g100, or painting --amber on
+     text, breaks a threshold. */
+  --amber: #e65100; --amber-bg: #fef8f2; --amber-border: #f9cca6;
+  --red: #d32f2f; --red-bg: #fff1f3; --red-border: #f0b6b6;
+  --blue: #1976d2; --blue-bg: #e3f2fd;
+  /* HM-221: the waitlist card's accent/icon/CTA color from bob-states.html
+     ("grapefruit", #e36944); hover is a hand-darkened shade of it. */
+  --grapefruit: #e36944; --grapefruit-hover: #c9532f;
+  /* HM-230: the approved card's check-circle icon color from bob-states.html
+     (the mockup strokes it #22c55e — brighter than the card system's --green,
+     which keeps tinting the card background/border). */
+  --check-green: #22c55e;
+}
+
+html, body { margin: 0; padding: 0; }
+body {
+  width: 360px;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--g800);
+  font-size: 13px;
+}
+
+/* Modal shell */
+#bob-root {
+  display: flex; flex-direction: column;
+  width: 360px; height: 520px;
+  background: #fff; overflow: hidden;
+}
+
+/* Router loading state (popup.js): a neutral spinner shown while the license
+   resolves, so a first-ever open never flashes BOB or the legacy menu before we
+   know which one to route to. */
+.router-loading {
+  display: flex; align-items: center; justify-content: center;
+  width: 360px; height: 520px; background: #fff;
+}
+.router-spinner {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 3px solid var(--g200); border-top-color: var(--teal);
+  animation: router-spin 0.8s linear infinite;
+}
+@keyframes router-spin { to { transform: rotate(360deg); } }
+
+/* Header */
+.bob-header {
+  background: #162033; padding: 10px 14px;
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+}
+.bob-header-left { display: flex; align-items: center; gap: 9px; }
+.bob-header .bob-av { background: rgba(255,255,255,0.10); margin-top: 0; }
+.bob-name { font-size: 12px; font-weight: 600; color: #fff; line-height: 1; }
+.bob-sub { font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.6); margin-top: 3px; }
+
+/* Header right: the active-flow crumb (doubles as back) + refresh + close. */
+.header-right { display: flex; align-items: center; gap: 8px; }
+.flow-crumb {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.75);
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 9999px; padding: 4px 9px 4px 7px; white-space: nowrap;
+  cursor: pointer; font-family: inherit; transition: background 150ms, color 150ms;
+}
+.flow-crumb:hover { background: rgba(255,255,255,0.2); color: #fff; }
+.hdr-btn {
+  background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.4);
+  display: flex; align-items: center; padding: 2px; border-radius: 4px;
+  transition: color 150ms;
+}
+.hdr-btn:hover { color: rgba(255,255,255,0.8); }
+
+/* Avatar */
+.bob-av {
+  width: 28px; height: 28px; border-radius: 50%; background: #f0f4f8;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; overflow: hidden; margin-top: 1px;
+}
+.bob-av img { width: 24px; height: 24px; object-fit: contain; }
+
+/* Message list (the scrollable chat column) */
+.msg-list {
+  /* min-height is a floor, not the usual flex `min-height: 0` — a scroll
+     container's automatic minimum is already 0. It stops the pinned bar below
+     from squeezing the conversation out of existence at large font sizes. */
+  flex: 1; min-height: 120px; overflow-y: auto; padding: 14px 14px 10px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.msg-list::-webkit-scrollbar { width: 3px; }
+.msg-list::-webkit-scrollbar-thumb { background: var(--g300); border-radius: 2px; }
+
+/* Active-pass bar (§4.5, prototype student.html .active-bar) — panel CHROME,
+   not a chat message. It is a sibling of .msg-list pinned beneath it, so a
+   student who opens the popup mid-pass always has the destination and the
+   check-in in reach instead of having to find them scrolled up in the log.
+   The slot collapses to zero height when no pass is running, so the chat keeps
+   the whole panel.
+
+   The bar takes its width from the slot rather than declaring width:100%: this
+   file grants border-box per component, not globally, so a padded, bordered
+   full-width box laid out the other way measures 360px + 24px padding + 5px
+   borders and overflows the popup, clipping its own right border and the
+   button inside it (the HM-175 QA screenshot). box-sizing here is belt and
+   braces for the same reason. */
+/* flex-shrink:0 is what pins the bar, but on its own it lets the bar win the
+   height fight outright. Chrome's "minimum font size" setting (max 24px)
+   overrides our px sizes, and at that setting a long destination name grew the
+   bar to 443 of the popup's 520px, squeezing the conversation to a 24px sliver;
+   larger still and the bar overflowed the fixed-height root, putting I'm Back
+   out of reach entirely. The cap plus .msg-list's floor keep both regions
+   usable, and the bar scrolls inside its own slot in the pathological case. */
+.active-bar-slot { flex-shrink: 0; max-height: 40%; overflow-y: auto; }
+.active-bar {
+  margin: 0 14px 14px; box-sizing: border-box;
+  border: 1.5px solid var(--g200); border-radius: 9px;
+  padding: 10px 12px; background: #fff;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+/* The text column doubles as the control that opens the full active screen —
+   a bare, unstyled button so it reads as the prototype's plain text. min-width
+   lets it shrink inside the flex row; without it a long destination name
+   pushes I'm Back off the edge. */
+.active-bar-open {
+  display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1;
+  border: none; background: none; padding: 0; text-align: left;
+  cursor: pointer; font: inherit;
+}
+.active-bar-icon {
+  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,127,165,0.08); color: var(--teal);
+}
+.active-bar-icon svg { display: block; }
+.active-bar-text { min-width: 0; overflow-wrap: anywhere; }
+/* Two lines is the ceiling for a destination name. Realistic names never reach
+   it; a pathological one (or an enlarged minimum font size) would otherwise
+   grow the bar without limit — see the slot's cap above. */
+.active-bar-name {
+  font-size: 13px; font-weight: 600; color: var(--g800);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.active-bar-limit { font-size: 11px; color: var(--g500); }
+/* The prototype's outlined check-in pill. flex-shrink:0 + nowrap keep it whole
+   when the destination name is long — the text column shrinks instead. */
+.im-back {
+  flex-shrink: 0; white-space: nowrap; box-sizing: border-box;
+  padding: 7px 14px; border-radius: 999px; border: 1.5px solid var(--g300);
+  background: #fff; font-size: 12px; font-weight: 600; color: var(--g800);
+  cursor: pointer; font-family: inherit; transition: all 150ms;
+}
+/* :not(...) so a settled button cannot still light up teal under the cursor —
+   equal specificity and disjoint properties meant :hover kept matching a
+   button that was already spent, which reads as live when it is dead. */
+.im-back:hover:not([aria-disabled="true"]) { border-color: var(--teal); color: var(--teal); }
+/* Settled state: an end that arrives while the bar is up removes it, but a
+   check-in the student themselves tapped leaves it in place for the instant
+   before the removal lands, and it must not be tappable twice. aria-disabled
+   rather than the `disabled` property on purpose — disabling the element the
+   student just activated blurs it, dropping focus to <body>. */
+.im-back[aria-disabled="true"], .active-bar-open[aria-disabled="true"] { opacity: .55; cursor: default; }
+
+/* Chat rows + bubbles */
+.bot-row { display: flex; align-items: flex-start; gap: 9px; }
+.bot-row .bubble { flex: 0 1 auto; }
+.bubble { width: fit-content; max-width: 86%; padding: 8px 12px; font-size: 13px; line-height: 1.45; }
+.bubble.bot { background: var(--g100); color: var(--g800); border-radius: 10px 10px 10px 3px; }
+.bubble.user { background: var(--teal); color: #fff; border-radius: 10px 10px 3px 10px; align-self: flex-end; }
+
+@keyframes bobFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.fade-in { animation: bobFadeIn .18s ease forwards; }
+
+/* Loading: BOB's "typing" dots while the gated bootstrap resolves, so the popup
+   never opens blank and a not-yet-ready worker reads as loading rather than as
+   "nothing to show". Mirrors the design's blink keyframe. */
+.loading-dots { display: flex; align-items: center; gap: 4px; padding: 11px 12px; }
+.loading-dots span {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--g400);
+  animation: bobBlink 1.4s infinite both;
+}
+.loading-dots span:nth-child(2) { animation-delay: .2s; }
+.loading-dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes bobBlink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+/* Chat option groups: a set of tappable rows that stack, and collapse into
+   settled history (dimmed, non-interactive) once the student picks one. The
+   destination grid keeps its own grid layout; only the collapse state is shared. */
+.chat-actions { display: flex; flex-direction: column; gap: 8px; }
+.group-done { opacity: .55; pointer-events: none; }
+
+/* Option / skill buttons */
+.opt-btn {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border-radius: 9px; border: 1.5px solid var(--g200); background: #fff;
+  cursor: pointer; text-align: left; width: 100%; box-sizing: border-box;
+  transition: all 140ms; font-family: inherit;
+}
+.opt-btn:hover { border-color: var(--teal); background: var(--teal-bg); }
+.opt-icon {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--teal-bg); color: var(--teal);
+}
+.opt-icon svg { display: block; }
+.opt-label { font-size: 13px; font-weight: 600; color: var(--g800); }
+.opt-desc { font-size: 11px; color: var(--g500); margin-top: 1px; }
+/* Status-colored option icons */
+.opt-icon.working { background: var(--blue-bg); color: var(--blue); }
+.opt-icon.help { background: var(--amber-bg); color: var(--amber); }
+.opt-icon.done { background: var(--green-bg); color: var(--green); }
+
+/* Destination grid */
+.dest-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.dest-grid .opt-btn { padding: 12px; }
+
+/* Action buttons (Start / Dismiss / Cancel / I'm back) */
+.action-btn {
+  display: block; width: 100%; box-sizing: border-box; text-align: center;
+  border-radius: 10px; padding: 11px 12px; cursor: pointer; font: inherit;
+  font-weight: 600; font-size: 14px; transition: all 140ms;
+}
+.action-btn.primary { border: 1px solid var(--teal); background: var(--teal); color: #fff; }
+.action-btn.primary:hover { background: var(--teal-hover); border-color: var(--teal-hover); }
+.action-btn.secondary { border: 1.5px solid var(--g200); background: #fff; color: var(--g800); }
+.action-btn.secondary:hover { border-color: var(--g300); }
+/* HM-221: the waitlist card's Leave Waitlist is the mockup's filled
+   grapefruit CTA (bob-states.html: background #e36944). */
+.action-btn.waitlist { border: 1px solid var(--grapefruit); background: var(--grapefruit); color: #fff; }
+.action-btn.waitlist:hover { background: var(--grapefruit-hover); border-color: var(--grapefruit-hover); }
+
+/* "Bob is thinking…" */
+.thinking-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--g400); margin-bottom: 5px;
+}
+.thinking-track { height: 4px; background: var(--g200); border-radius: 999px; overflow: hidden; }
+.thinking-fill { height: 100%; width: 0; background: var(--teal); border-radius: 999px; transition: width 80ms linear; }
+.thinking-step { font-size: 11px; color: var(--g400); margin-top: 6px; transition: color 200ms; }
+.thinking-step.done { color: var(--green); font-weight: 500; }
+
+/* Outcome / info cards */
+.card-title { font-weight: 700; font-size: 15px; margin: 2px 0 2px; }
+.info-card {
+  border-radius: 10px; padding: 11px 13px; font-size: 13px; line-height: 1.45;
+  border: 1px solid var(--g200); background: var(--g100); color: var(--g800);
+}
+/* HM-230 rev 2: the approved card is the prototype's WHITE card — #fff over
+   1px #e9ebed with the 4px teal left accent (bob-states.html action-card) —
+   breaking from the tinted-card system on this one card per the product call
+   to match the prototype exactly. Same 3px padding-left compensation as the
+   waitlist card's accent below. */
+.info-card.approved { background: #fff; border-color: var(--g200); border-left: 4px solid var(--teal); padding-left: 10px; }
+/* The card's auto-start countdown (prototype: 4px track, teal fill draining
+   left, small centered label). The fill's width is driven per-second from JS;
+   the 1s linear transition makes the drain read as continuous. */
+.info-card.approved .countdown-track { height: 4px; background: var(--g200); border-radius: 999px; overflow: hidden; margin-top: 10px; margin-bottom: 6px; }
+.info-card.approved .countdown-fill { height: 100%; width: 100%; background: var(--teal); border-radius: 999px; transition: width 1s linear; }
+.info-card.approved .countdown-label { font-size: 10px; color: var(--g400); text-align: center; margin-bottom: 8px; }
+/* Go Now / Cancel live INSIDE the card (prototype btn-row): side-by-side,
+   compact versions of the shared action buttons. */
+.info-card.approved .btn-row { display: flex; gap: 6px; }
+.info-card.approved .btn-row .action-btn { flex: 1; width: auto; padding: 8px 0; font-size: 13px; border-radius: 8px; }
+.info-card.pending  { background: var(--teal-bg); border-color: var(--teal-border); }
+/* HM-221: the waitlist card carries the mockup's 4px grapefruit left accent
+   (bob-states.html: border-left-color #e36944) over the extension's uniform
+   tinted card system — the tint stays, the accent is the mockup's border.
+   padding-left drops 3px so the text column stays aligned with the sibling
+   cards' (1px border + 13px padding) left edge. */
+.info-card.waitlisted { background: var(--amber-bg); border-color: var(--amber-border); border-left: 4px solid var(--grapefruit); padding-left: 10px; }
+/* Icon head on the accent cards (waitlist clock, HM-221; approved check-circle,
+   HM-230 — both 18px per the mockup). The icons draw in currentColor so the
+   per-card rules below own each tint alongside its accent. min-width:0 lets the
+   text column shrink inside the flex row — without it a long unbroken
+   destination name blows past the card width. Scoped to the two cards that
+   render a .card-head: scoping keeps a future unrelated .card-head elsewhere
+   in the popup from inheriting this styling by accident. */
+.info-card.waitlisted .card-head, .info-card.approved .card-head { display: flex; gap: 8px; align-items: flex-start; }
+.info-card.waitlisted .card-head .card-icon, .info-card.approved .card-head .card-icon { flex: none; margin-top: 3px; line-height: 0; }
+.info-card.waitlisted .card-head .card-icon { color: var(--grapefruit); }
+.info-card.approved .card-head .card-icon { color: var(--check-green); }
+.info-card.waitlisted .card-head > div, .info-card.approved .card-head > div { min-width: 0; overflow-wrap: anywhere; }
+.info-card.denied, .info-card.expired, .info-card.error { background: var(--red-bg); border-color: var(--red-border); }
+/* A pass a teacher/admin ended is CLOSED, not failed — the student was out and
+   is now checked in. Warning red would read as "you did something wrong"; this
+   takes the same settled green as a granted pass. */
+.info-card.ended { background: var(--green-bg); border-color: var(--green-border); }
+/* A request nobody answered is not a refusal — amber (the waiting colour), not
+   the denial red. Nothing was decided; the student can just ask again. */
+.info-card.timed_out { background: var(--amber-bg); border-color: var(--amber-border); }
+/* Same reasoning for a request the class ended out from under (HM-194):
+   nothing was decided, so the waiting amber, not the denial red. */
+.info-card.session_ended { background: var(--amber-bg); border-color: var(--amber-border); }
+.hint { font-size: 12px; color: var(--g500); margin: 2px 0 4px; }
