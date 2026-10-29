@@ -1,0 +1,42 @@
+{
+   "action": {
+      "default_icon": {
+         "16": "assets/browseraction-working.png"
+      },
+      "default_popup": "menu.html",
+      "default_title": "Classroom Status"
+   },
+   "background": {
+      "service_worker": "worker.js"
+   },
+   "content_scripts": [ {
+      "all_frames": true,
+      "js": [ "content.js" ],
+      "matches": [ "\u003Call_urls>" ]
+   } ],
+   "content_security_policy": {
+      "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+   },
+   "description": "Lightspeed Classroom Agent for Chrome",
+   "externally_connectable": {
+      "ids": [ "kkbmdgjggcdajckdlbngdjonpchpaiea" ]
+   },
+   "host_permissions": [ "\u003Call_urls>", "http://*/*", "https://*/*" ],
+   "icons": {
+      "128": "assets/icon-classroom-128.png",
+      "16": "assets/icon-classroom-16.png",
+      "48": "assets/icon-classroom-48.png"
+   },
+   "incognito": "spanning",
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvmGhQFM9SEwhhdXhIQ+QOko1eJYmJHR4G7KC3PDM/48wvO3Eyx7mLqX+nENjoV3vyrzkDlyxgDp3TYC2Pmv3djYZe2oJMMCFg/Kdrxy05AB+DtblQLvziw4JJxrqMd7aqw/Hn7mQUAIqUODnsKGuuvcc2TGbVjoDqXD1UB1k9Z7jZq/9IT1cQuYU3k9EZpdb0UV+QYpCPbwSXzpcWfHEg2tGEBlCRLnmFFkrpo4Owe+sn2+Rt3CuJUQDfx7CfhLiuoTanMylSkIZ8yaIT60MELdjwwEoLQjQxrt7ihi1vae6q79VO4EbMli0jYMDqhy0qk3hisEGHPoOkQ5lIxbJhwIDAQAB",
+   "manifest_version": 3,
+   "name": "Lightspeed Classroom Agent",
+   "options_page": "options.html",
+   "permissions": [ "activeTab", "background", "bookmarks", "desktopCapture", "enterprise.deviceAttributes", "identity", "identity.email", "idle", "offscreen", "storage", "tabCapture", "tabs", "notifications", "webRequest" ],
+   "update_url": "https://lsrelay-extensions-production.s3.amazonaws.com/classroom/93791460bd4591916fae6788dd691570096e47a0e47061cdead407edc2363560/v3/Classroom.xml",
+   "version": "5.6.4.1792036364",
+   "web_accessible_resources": [ {
+      "matches": [ "\u003Call_urls>" ],
+      "resources": [ "*.png", "content.js", "console.html", "offscreen.html", "rtc_connection.js" ]
+   } ]
+}
